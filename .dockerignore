@@ -1,7 +1,7 @@
 .git
+node_modules
+dist
 .venv
 *.db
 __pycache__
-tests
-scripts
 docs

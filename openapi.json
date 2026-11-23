@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "PaySplit Sandbox API",
-    "version": "0.1.0",
-    "description": "NGN amounts use integer kobo. Percent rules use basis points. Bank verification and payouts are simulated; no real money moves."
+    "version": "0.2.0",
+    "description": "Node.js/TypeScript Express sandbox API. NGN amounts use integer kobo. Percent rules use basis points. Bank verification and payouts are simulated; no real money moves."
   },
   "servers": [
     {
