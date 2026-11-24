@@ -8,8 +8,8 @@ export class ApiError extends Error {
 export function requireValue(condition: unknown, status: number, message: string): asserts condition {
   if (!condition) throw new ApiError(status, message);
 }
-export const safe = (action: (req: Request, res: Response) => void) => (req: Request, res: Response, next: NextFunction) => {
-  try { action(req, res); } catch (error) { next(error); }
+export const safe = (action: (req: Request, res: Response) => unknown) => (req: Request, res: Response, next: NextFunction) => {
+  try { Promise.resolve(action(req, res)).catch(next); } catch (error) { next(error); }
 };
 export const jsonObject = (value: unknown): value is Row => value !== null && typeof value === 'object' && !Array.isArray(value);
 export const userOf = (res: Response): Row => res.locals.user as Row;

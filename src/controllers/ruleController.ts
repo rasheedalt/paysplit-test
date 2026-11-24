@@ -1,39 +1,37 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { PrismaClient } from '@prisma/client';
 import { newId, now } from '../services/authService.js';
-import { transaction } from '../database/sqlite.js';
 import { jsonObject, requireValue, safe, userOf } from '../middleware/errorHandler.js';
-import type { Row } from '../types/rows.js';
+import { toSafeNumber } from '../services/moneyService.js';
 
-export function ruleController(db: DatabaseSync) {
+export function ruleController(prisma: PrismaClient) {
   return {
-    create: safe((req, res) => {
+    create: safe(async (req, res) => {
       const data = req.body;
       requireValue(jsonObject(data), 400, 'JSON object required');
       const { destination_id: destinationId, kind, value } = data;
       requireValue(kind === 'fixed' || kind === 'percent', 422, 'Kind must be fixed or percent');
       requireValue(Number.isSafeInteger(value) && (kind === 'fixed' ? value > 0 : value >= 1 && value <= 10000), 422, 'Value must be positive kobo or 1–10000 basis points');
-      const id = transaction(db, () => {
-        const dest = db.prepare('SELECT id FROM destinations WHERE id=? AND user_id=? AND verified=1').get(destinationId, userOf(res).id);
+      const id = await prisma.$transaction(async tx => {
+        const dest = await tx.destination.findFirst({ where: { id: destinationId, userId: userOf(res).id, verified: true }, select: { id: true } });
         requireValue(dest, 422, 'Verified destination required');
         if (kind === 'percent') {
-          const total = db.prepare("SELECT COALESCE(SUM(value),0) AS total FROM rules WHERE user_id=? AND kind='percent' AND active=1").get(userOf(res).id) as Row;
-          requireValue(total.total + value <= 10000, 422, 'Percent rules exceed 100%');
+          const aggregate = await tx.rule.aggregate({ where: { userId: userOf(res).id, kind: 'percent', active: true }, _sum: { value: true } });
+          requireValue((aggregate._sum.value ?? 0n) + BigInt(value) <= 10000n, 422, 'Percent rules exceed 100%');
         }
         const ruleId = newId();
-        db.prepare('INSERT INTO rules (id,user_id,destination_id,kind,value,created_at) VALUES (?,?,?,?,?,?)')
-          .run(ruleId, userOf(res).id, destinationId, kind, value, now());
+        await tx.rule.create({ data: { id: ruleId, userId: userOf(res).id, destinationId, kind, value: BigInt(value), createdAt: now() } });
         return ruleId;
       });
       res.status(201).json({ id, destination_id: destinationId, kind, value, active: true });
     }),
-    list: safe((_req, res) => {
-      const rows = db.prepare('SELECT id,destination_id,kind,value,active FROM rules WHERE user_id=? ORDER BY created_at,id').all(userOf(res).id) as Row[];
-      res.json({ items: rows.map(row => ({ ...row, active: Boolean(row.active) })) });
+    list: safe(async (_req, res) => {
+      const rows = await prisma.rule.findMany({ where: { userId: userOf(res).id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, destinationId: true, kind: true, value: true, active: true } });
+      res.json({ items: rows.map(row => ({ id: row.id, destination_id: row.destinationId, kind: row.kind, value: toSafeNumber(row.value), active: row.active })) });
     }),
-    deactivate: safe((req, res) => {
+    deactivate: safe(async (req, res) => {
       const id = String(req.params.id);
-      const result = transaction(db, () => db.prepare('UPDATE rules SET active=0 WHERE id=? AND user_id=? AND active=1').run(id, userOf(res).id));
-      requireValue(result.changes === 1, 404, 'Active rule not found');
+      const result = await prisma.rule.updateMany({ where: { id, userId: userOf(res).id, active: true }, data: { active: false } });
+      requireValue(result.count === 1, 404, 'Active rule not found');
       res.json({ id, active: false });
     }),
   };

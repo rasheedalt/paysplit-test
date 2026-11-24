@@ -3,18 +3,26 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/src/server.js",
     "worker": "node --env-file-if-exists=.env dist/src/worker.js",
     "test": "npm run build && node --test dist/tests/integration/*.test.js",
-    "demo": "npm run build && node dist/scripts/demo.js"
+    "demo": "npm run build && node dist/scripts/demo.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "node --env-file-if-exists=.env dist/scripts/prepareDatabase.js"
   },
-  "dependencies": { "express": "5.1.0" },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "express": "5.1.0"
+  },
   "devDependencies": {
     "@types/express": "5.0.4",
     "@types/node": "24.9.1",
+    "prisma": "^6.19.3",
     "typescript": "5.9.3"
   }
 }

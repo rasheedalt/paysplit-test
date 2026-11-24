@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import express from 'express';
-import type { DatabaseSync } from 'node:sqlite';
+import type { PrismaClient } from '@prisma/client';
 import { ApiError, errorHandler } from './middleware/errorHandler.js';
 import { v1Routes } from './routes/v1Routes.js';
 import { webhookRoutes } from './routes/webhookRoutes.js';
 
-export function createApp(db: DatabaseSync) {
+export function createApp(db: PrismaClient) {
   const app = express();
   app.disable('x-powered-by');
   app.use((_req, res, next) => {

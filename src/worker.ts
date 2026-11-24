@@ -1,11 +1,11 @@
-import { openDatabase } from './database/sqlite.js';
+import { createPrismaClient } from './database/prisma.js';
 import { runPayoutJob } from './jobs/payoutJob.js';
 
-const db = openDatabase();
+const prisma = createPrismaClient();
 const once = process.argv.includes('--once');
-const run = () => {
-  try { console.log(`Processed ${runPayoutJob(db)} allocations`); }
+const run = async () => {
+  try { console.log(`Processed ${await runPayoutJob(prisma)} allocations`); }
   catch (error) { console.error(error); process.exitCode = 1; }
 };
-run();
-if (!once) setInterval(run, 60_000);
+void run().then(async () => { if (once) await prisma.$disconnect(); });
+if (!once) setInterval(() => void run(), 60_000);

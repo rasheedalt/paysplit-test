@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  accountRef   String        @unique @map("account_ref")
+  createdAt    String        @map("created_at")
+  sessions     Session[]
+  destinations Destination[]
+  rules        Rule[]
+  salaryEvents SalaryEvent[]
+  ledger       LedgerEntry[]
+
+  @@map("users")
+}
+
+model Session {
+  tokenHash String @id @map("token_hash")
+  userId    String @map("user_id")
+  expiresAt Int    @map("expires_at")
+  user      User   @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+model Destination {
+  id            String       @id
+  userId        String       @map("user_id")
+  kind          String
+  name          String
+  bankCode      String?      @map("bank_code")
+  accountNumber String?      @map("account_number")
+  verified      Boolean
+  createdAt     String       @map("created_at")
+  user          User         @relation(fields: [userId], references: [id])
+  rules         Rule[]
+  allocations   Allocation[]
+
+  @@map("destinations")
+}
+
+model Rule {
+  id            String       @id
+  userId        String       @map("user_id")
+  destinationId String       @map("destination_id")
+  kind          String
+  value         BigInt
+  active        Boolean      @default(true)
+  createdAt     String       @map("created_at")
+  user          User         @relation(fields: [userId], references: [id])
+  destination   Destination  @relation(fields: [destinationId], references: [id])
+  allocations   Allocation[]
+
+  @@map("rules")
+}
+
+model SalaryEvent {
+  id              String       @id
+  providerEventId String       @unique @map("provider_event_id")
+  userId          String       @map("user_id")
+  amount          BigInt
+  currency        String
+  receivedAt      String       @map("received_at")
+  user            User         @relation(fields: [userId], references: [id])
+  allocations     Allocation[]
+
+  @@map("salary_events")
+}
+
+model Allocation {
+  id            String      @id
+  salaryEventId String      @map("salary_event_id")
+  ruleId        String      @map("rule_id")
+  destinationId String      @map("destination_id")
+  amount        BigInt
+  status        String
+  attempts      Int         @default(0)
+  nextAttemptAt Int         @default(0) @map("next_attempt_at")
+  error         String?
+  createdAt     String      @map("created_at")
+  salaryEvent   SalaryEvent @relation(fields: [salaryEventId], references: [id])
+  rule          Rule        @relation(fields: [ruleId], references: [id])
+  destination   Destination @relation(fields: [destinationId], references: [id])
+
+  @@index([status, nextAttemptAt], map: "allocations_due_idx")
+  @@map("allocations")
+}
+
+model LedgerEntry {
+  id        String @id
+  journalId String @map("journal_id")
+  userId    String @map("user_id")
+  account   String
+  amount    BigInt
+  createdAt String @map("created_at")
+  user      User   @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], map: "ledger_user_idx")
+  @@map("ledger")
+}

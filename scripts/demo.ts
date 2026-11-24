@@ -1,15 +1,19 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { execFileSync } from 'node:child_process';
 import type { Row } from '../src/types/rows.js';
 
 const port = 8765;
 const base = `http://127.0.0.1:${port}`;
 const dir = mkdtempSync(path.join(os.tmpdir(), 'paysplit-demo-'));
-const env = { ...process.env, PAYSPLIT_DB: path.join(dir, 'demo.db'), PAYSPLIT_WEBHOOK_SECRET: `demo-secret-${'x'.repeat(32)}`, PORT: String(port) };
+const databaseFile = path.join(dir, 'demo.db');
+writeFileSync(databaseFile, '');
+const env = { ...process.env, DATABASE_URL: `file:${databaseFile}`, PAYSPLIT_WEBHOOK_SECRET: `demo-secret-${'x'.repeat(32)}`, PORT: String(port) };
+execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { env, stdio: 'pipe' });
 const server = spawn(process.execPath, ['dist/src/server.js'], { env, stdio: 'ignore' });
 
 async function call(method: string, route: string, data?: object, token?: string, headers: Record<string, string> = {}): Promise<Row> {

@@ -1,14 +1,14 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { openDatabase } from './database/sqlite.js';
+import { createPrismaClient } from './database/prisma.js';
 import { runPayoutJob } from './jobs/payoutJob.js';
 
-const db = openDatabase();
+const prisma = createPrismaClient();
 if (env.embeddedWorker) {
-  const run = () => {
-    try { runPayoutJob(db); } catch (error) { console.error('Payout worker failed', error); }
+  const run = async () => {
+    try { await runPayoutJob(prisma); } catch (error) { console.error('Payout worker failed', error); }
   };
-  run();
-  setInterval(run, 60_000);
+  void run();
+  setInterval(() => void run(), 60_000);
 }
-createApp(db).listen(env.port, env.host, () => console.log(`PaySplit listening on ${env.host}:${env.port}`));
+createApp(prisma).listen(env.port, env.host, () => console.log(`PaySplit listening on ${env.host}:${env.port}`));

@@ -2,17 +2,31 @@ import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { after, before, test } from 'node:test';
+import type { PrismaClient } from '@prisma/client';
 import { createApp } from '../../src/app.js';
-import { openDatabase, transaction } from '../../src/database/sqlite.js';
+import { createPrismaClient } from '../../src/database/prisma.js';
 import { processPending } from '../../src/services/moneyService.js';
 import type { Row } from '../../src/types/rows.js';
 
-const db = openDatabase(':memory:');
 process.env.PAYSPLIT_WEBHOOK_SECRET = 's'.repeat(32);
+let db: PrismaClient;
+let temp: string;
 let server: Server;
 let base: string;
 before(async () => {
+  temp = mkdtempSync(path.join(os.tmpdir(), 'paysplit-prisma-test-'));
+  const file = path.join(temp, 'test.db');
+  writeFileSync(file, '');
+  const url = `file:${file}`;
+  execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {
+    cwd: process.cwd(), env: { ...process.env, DATABASE_URL: url }, stdio: 'pipe',
+  });
+  db = createPrismaClient(url);
   server = createServer(createApp(db));
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -23,7 +37,8 @@ before(async () => {
 after(async () => {
   server.close();
   await once(server, 'close');
-  db.close();
+  await db.$disconnect();
+  rmSync(temp, { recursive: true, force: true });
 });
 
 async function call(method: string, path: string, data?: object, token?: string, headers: Record<string, string> = {}) {
@@ -63,7 +78,7 @@ test('signed split, idempotency, payout, ledger, and ownership', async () => {
   let detail = (await call('GET', `/v1/salary-events/${event.body.id}`, undefined, token)).body;
   assert.deepEqual(detail.allocations.map((x: Row) => x.amount).sort((a: number, b: number) => a - b), [6000000, 10000000]);
   assert.equal(detail.unallocated, 44000000);
-  assert.equal(processPending(db), 2);
+  assert.equal(await processPending(db), 2);
   detail = (await call('GET', `/v1/salary-events/${event.body.id}`, undefined, token)).body;
   assert.deepEqual(new Set(detail.allocations.map((x: Row) => x.status)), new Set(['completed']));
   assert.equal((await call('GET', `/v1/salary-events/${event.body.id}`, undefined, other.token)).status, 404);
@@ -89,12 +104,12 @@ test('failed payout retries then refunds available balance', async () => {
   const event = (await salary({ event_id: randomUUID(), account_ref: user.account_ref, amount: 100 })).body;
   let detail: Row = {};
   for (let attempt = 1; attempt <= 3; attempt++) {
-    assert.equal(processPending(db), 1);
+    assert.equal(await processPending(db), 1);
     detail = (await call('GET', `/v1/salary-events/${event.id}`, undefined, token)).body;
     assert.equal(detail.allocations[0].attempts, attempt);
-    if (attempt < 3) transaction(db, () => db.prepare('UPDATE allocations SET next_attempt_at=0 WHERE id=?').run(detail.allocations[0].id));
+    if (attempt < 3) await db.allocation.update({ where: { id: detail.allocations[0].id }, data: { nextAttemptAt: 0 } });
   }
   assert.equal(detail.allocations[0].status, 'failed');
-  const balance = db.prepare("SELECT SUM(amount) AS amount FROM ledger WHERE user_id=? AND account='available'").get(user.id) as Row;
-  assert.equal(balance.amount, 100);
+  const balance = await db.ledgerEntry.aggregate({ where: { userId: user.id, account: 'available' }, _sum: { amount: true } });
+  assert.equal(balance._sum.amount, 100n);
 });

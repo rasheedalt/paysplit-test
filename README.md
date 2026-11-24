@@ -4,14 +4,15 @@ PaySplit routes verified salary events through user rules, records every movemen
 
 ## Run locally
 
-Requires Node.js 24 or later. Node's built-in SQLite module is currently experimental.
+Requires Node.js 24 or later. Prisma 6 manages a local SQLite database.
 
 ```sh
 npm ci
-npm run build
 cp .env.example .env
 # Set PAYSPLIT_WEBHOOK_SECRET in .env using:
 # node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))'
+npm run build
+npm run db:migrate
 npm start
 ```
 
@@ -21,9 +22,9 @@ In another terminal, run scheduler worker:
 npm run worker
 ```
 
-API listens on `http://127.0.0.1:8000`. Set `HOST` and `PORT` for deployment. Set `PAYSPLIT_EMBEDDED_WORKER=1` to process payouts every 60 seconds inside API process. `GET /health` and `GET /openapi.json` need no token. Other user endpoints need bearer token.
+`npm run db:migrate` applies Prisma migrations; `npm start` then listens on `http://127.0.0.1:8000`. SQLite URL in `.env.example` points to `prisma/paysplit.db`; Prisma resolves relative file paths from `prisma/schema.prisma`. Set `HOST` and `PORT` for deployment. Set `PAYSPLIT_EMBEDDED_WORKER=1` to process payouts every 60 seconds inside API process. `GET /health` and `GET /openapi.json` need no token. Other user endpoints need bearer token.
 
-Source follows LeasHub backend's boundaries at project scale: `src/app.ts` composes routes; `src/routes/` maps URLs; `src/controllers/` handles HTTP; `src/services/` owns auth and money logic; `src/database/` owns SQLite transactions; `src/middleware/` handles auth and errors; `src/jobs/` runs payouts; `src/config/` reads environment. Integration tests live in `tests/integration/`.
+Source follows LeasHub backend's boundaries at project scale: `src/app.ts` composes routes; `src/routes/` maps URLs; `src/controllers/` handles HTTP; `src/services/` owns auth and money logic; `src/database/` creates Prisma Client; `prisma/` owns schema and migrations; `src/middleware/` handles auth and errors; `src/jobs/` runs payouts; `src/config/` reads environment. Integration tests live in `tests/integration/`.
 
 Run focused integration tests and end-to-end demo:
 
@@ -38,19 +39,29 @@ Demo prints registration, rule setup, signed 600,000 NGN salary event, idempoten
 
 Amounts are integer **kobo**. Percentage rule values are **basis points** (1000 = 10%). Each percentage applies to gross salary; fixed amounts apply once. For 600,000 NGN, rules of 10%, 100,000 NGN, 50,000 NGN, and 200,000 NGN allocate 410,000 NGN. Remaining 190,000 NGN stays available. If allocations exceed income, whole event is rejected before any ledger entry. Rule changes affect future salary events only.
 
-Trusted salary source posts signed webhook. Signature is HMAC-SHA256 over `timestamp + "." + raw JSON body`, using `PAYSPLIT_WEBHOOK_SECRET`. Timestamp must be within five minutes. Provider event ID is unique; exact replay returns same event, while conflicting replay is rejected. One SQLite transaction stores salary event, allocation snapshot, and balanced journal postings. Worker processes pending allocations, retries simulated failures, and posts completion or refund journals. Bank accounts ending `0000` simulate failed payout. Savings allocations remain internal.
+Trusted salary source posts signed webhook. Signature is HMAC-SHA256 over `timestamp + "." + raw JSON body`, using `PAYSPLIT_WEBHOOK_SECRET`. Timestamp must be within five minutes. Provider event ID is unique; exact replay returns same event, while conflicting replay is rejected. One Prisma transaction stores salary event, allocation snapshot, and balanced journal postings. Worker processes pending allocations, retries simulated failures, and posts completion or refund journals. Bank accounts ending `0000` simulate failed payout. Savings allocations remain internal.
 
 Passwords use scrypt with random salt. Session tokens are random, stored as SHA-256 hashes, and expire after 24 hours. Queries scope records to authenticated user. API limits JSON bodies to 64 KiB. Deploy only behind HTTPS. Secrets must come from host environment. This sandbox has no rate limiter, real bank name enquiry, transfer provider, reconciliation, or durable hosted database. Those are required before production money movement.
 
-## Migration from Python sandbox
+## Existing SQLite database
 
-Node.js implementation uses same SQLite schema, password hash format, session token hashes, and HTTP endpoint contract as previous Python version. Existing `paysplit.db` can be used without data migration. Back up file before changing runtimes. Roll back code to commit `5d5935e` and reuse same database if needed. Do not run Python and Node workers against same file during cutover.
+Prisma models map to existing SQLite tables and columns. Existing user records, rules, and ledger entries remain readable. Back up existing database before cutover. If existing database is at project root, set `DATABASE_URL=file:../paysplit.db` in `.env`. Before first `npm start` against an existing nonempty database, mark initial migration as already applied:
+
+```sh
+node --env-file=.env node_modules/prisma/build/index.js migrate resolve --applied 20261124000000_init
+npm run db:migrate
+npm start
+```
+
+Baseline only a database with the previous PaySplit schema. Prisma returns `P3005` for nonempty databases without a baseline. Do not run old and new workers against the same file during cutover. To roll back code, use commit `a2fab48`; restore database backup if later migrations changed its schema.
 
 ## Deployable package
 
-`Dockerfile` builds TypeScript and runs one API instance with embedded worker. Mount persistent volume at `/data` and set unique `PAYSPLIT_WEBHOOK_SECRET` environment variable of at least 32 characters. Example:
+`Dockerfile` has separate migration and API images. Run migration image once against persistent volume before starting API image. Set unique `PAYSPLIT_WEBHOOK_SECRET` environment variable of at least 32 characters. Example:
 
 ```sh
+docker build --target migrate -t paysplit-migrate .
+docker run --rm -v paysplit-data:/data paysplit-migrate
 docker build -t paysplit .
 docker run --rm -p 8000:8000 -v paysplit-data:/data -e PAYSPLIT_WEBHOOK_SECRET="your-random-secret-at-least-32-characters" paysplit
 ```
