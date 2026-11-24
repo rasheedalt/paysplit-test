@@ -1,9 +1,9 @@
-import type { PrismaClient } from '@prisma/client';
+import { prisma } from '../database/prisma.js';
 import { newId, now } from '../services/authService.js';
 import { jsonObject, requireValue, safe, userOf } from '../middleware/errorHandler.js';
 import { toSafeNumber } from '../services/moneyService.js';
 
-export function ruleController(prisma: PrismaClient) {
+export function ruleController() {
   return {
     create: safe(async (req, res) => {
       const data = req.body;

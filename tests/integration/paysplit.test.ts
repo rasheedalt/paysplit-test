@@ -8,13 +8,12 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { after, before, test } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
-import { createApp } from '../../src/app.js';
-import { createPrismaClient } from '../../src/database/prisma.js';
-import { processPending } from '../../src/services/moneyService.js';
 import type { Row } from '../../src/types/rows.js';
 
 process.env.PAYSPLIT_WEBHOOK_SECRET = 's'.repeat(32);
 let db: PrismaClient;
+let createApp: typeof import('../../src/app.js').createApp;
+let processPending: typeof import('../../src/services/moneyService.js').processPending;
 let temp: string;
 let server: Server;
 let base: string;
@@ -26,8 +25,11 @@ before(async () => {
   execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {
     cwd: process.cwd(), env: { ...process.env, DATABASE_URL: url }, stdio: 'pipe',
   });
-  db = createPrismaClient(url);
-  server = createServer(createApp(db));
+  process.env.DATABASE_URL = url;
+  ({ prisma: db } = await import('../../src/database/prisma.js'));
+  ({ createApp } = await import('../../src/app.js'));
+  ({ processPending } = await import('../../src/services/moneyService.js'));
+  server = createServer(createApp());
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -78,7 +80,7 @@ test('signed split, idempotency, payout, ledger, and ownership', async () => {
   let detail = (await call('GET', `/v1/salary-events/${event.body.id}`, undefined, token)).body;
   assert.deepEqual(detail.allocations.map((x: Row) => x.amount).sort((a: number, b: number) => a - b), [6000000, 10000000]);
   assert.equal(detail.unallocated, 44000000);
-  assert.equal(await processPending(db), 2);
+  assert.equal(await processPending(), 2);
   detail = (await call('GET', `/v1/salary-events/${event.body.id}`, undefined, token)).body;
   assert.deepEqual(new Set(detail.allocations.map((x: Row) => x.status)), new Set(['completed']));
   assert.equal((await call('GET', `/v1/salary-events/${event.body.id}`, undefined, other.token)).status, 404);
@@ -104,7 +106,7 @@ test('failed payout retries then refunds available balance', async () => {
   const event = (await salary({ event_id: randomUUID(), account_ref: user.account_ref, amount: 100 })).body;
   let detail: Row = {};
   for (let attempt = 1; attempt <= 3; attempt++) {
-    assert.equal(await processPending(db), 1);
+    assert.equal(await processPending(), 1);
     detail = (await call('GET', `/v1/salary-events/${event.id}`, undefined, token)).body;
     assert.equal(detail.allocations[0].attempts, attempt);
     if (attempt < 3) await db.allocation.update({ where: { id: detail.allocations[0].id }, data: { nextAttemptAt: 0 } });

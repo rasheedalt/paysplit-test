@@ -1,10 +1,9 @@
-import { createPrismaClient } from './database/prisma.js';
+import { prisma } from './database/prisma.js';
 import { runPayoutJob } from './jobs/payoutJob.js';
 
-const prisma = createPrismaClient();
 const once = process.argv.includes('--once');
 const run = async () => {
-  try { console.log(`Processed ${await runPayoutJob(prisma)} allocations`); }
+  try { console.log(`Processed ${await runPayoutJob()} allocations`); }
   catch (error) { console.error(error); process.exitCode = 1; }
 };
 void run().then(async () => { if (once) await prisma.$disconnect(); });

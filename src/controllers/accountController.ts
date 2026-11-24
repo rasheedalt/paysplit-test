@@ -1,8 +1,9 @@
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../database/prisma.js';
 import { newId, now, passwordHash, passwordValid, tokenHash } from '../services/authService.js';
 import { ApiError, jsonObject, requireValue, safe, userOf } from '../middleware/errorHandler.js';
 
-export function accountController(prisma: PrismaClient) {
+export function accountController() {
   return {
     register: safe(async (req, res) => {
       const data = req.body;

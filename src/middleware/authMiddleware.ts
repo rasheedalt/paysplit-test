@@ -1,9 +1,9 @@
-import type { PrismaClient } from '@prisma/client';
+import { prisma } from '../database/prisma.js';
 import type { Request, Response, NextFunction } from 'express';
 import { tokenHash } from '../services/authService.js';
 import { requireValue } from './errorHandler.js';
 
-export function authMiddleware(prisma: PrismaClient) {
+export function authMiddleware() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const auth = req.header('Authorization') ?? '';

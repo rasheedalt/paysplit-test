@@ -1,4 +1,5 @@
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../database/prisma.js';
 import { DomainError } from '../errors/DomainError.js';
 import { newId, now } from './authService.js';
 
@@ -28,7 +29,7 @@ export function makeAllocations(amount: bigint, rules: RuleInput[]): Array<[Rule
   return shares.filter(([, share]) => share > 0n);
 }
 
-export async function receiveSalary(prisma: PrismaClient, providerEventId: unknown, accountRef: unknown, amount: unknown, currency: unknown = 'NGN'): Promise<{ id: string; duplicate: boolean }> {
+export async function receiveSalary(providerEventId: unknown, accountRef: unknown, amount: unknown, currency: unknown = 'NGN'): Promise<{ id: string; duplicate: boolean }> {
   if (typeof providerEventId !== 'string' || providerEventId.length < 1 || providerEventId.length > 128) throw new DomainError('Event ID must be 1–128 characters');
   if (typeof accountRef !== 'string') throw new DomainError('Account reference required');
   if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0) throw new DomainError('Salary amount must be positive integer kobo');
@@ -73,7 +74,7 @@ export async function receiveSalary(prisma: PrismaClient, providerEventId: unkno
   }
 }
 
-export async function processPending(prisma: PrismaClient, limit = 100): Promise<number> {
+export async function processPending(limit = 100): Promise<number> {
   let processed = 0;
   for (; processed < limit; processed++) {
     const found = await prisma.$transaction(async tx => {

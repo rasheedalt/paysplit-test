@@ -1,10 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
+import { prisma } from '../database/prisma.js';
 import { env } from '../config/env.js';
 import { receiveSalary, toSafeNumber } from '../services/moneyService.js';
 import { ApiError, jsonObject, requireValue, safe, userOf } from '../middleware/errorHandler.js';
 
-export function salaryController(prisma: PrismaClient) {
+export function salaryController() {
   return {
     webhook: safe(async (req, res) => {
       requireValue(Buffer.isBuffer(req.body) && req.body.length > 0, 400, 'JSON body required');
@@ -19,7 +19,7 @@ export function salaryController(prisma: PrismaClient) {
       let data: unknown;
       try { data = JSON.parse(req.body.toString('utf8')); } catch { throw new ApiError(400, 'Invalid JSON'); }
       requireValue(jsonObject(data), 400, 'JSON object required');
-      const result = await receiveSalary(prisma, data.event_id, data.account_ref, data.amount, data.currency ?? 'NGN');
+      const result = await receiveSalary(data.event_id, data.account_ref, data.amount, data.currency ?? 'NGN');
       res.status(result.duplicate ? 200 : 201).json(result);
     }),
     list: safe(async (_req, res) => {
