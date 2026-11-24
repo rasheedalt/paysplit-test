@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { Row } from '../src/core.js';
+import type { Row } from '../src/types/rows.js';
 
 const port = 8765;
 const base = `http://127.0.0.1:${port}`;

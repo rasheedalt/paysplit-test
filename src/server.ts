@@ -1,14 +1,14 @@
 import { createApp } from './app.js';
-import { openDatabase, processPending } from './core.js';
+import { env } from './config/env.js';
+import { openDatabase } from './database/sqlite.js';
+import { runPayoutJob } from './jobs/payoutJob.js';
 
 const db = openDatabase();
-const host = process.env.HOST ?? '127.0.0.1';
-const port = Number(process.env.PORT ?? '8000');
-if (process.env.PAYSPLIT_EMBEDDED_WORKER === '1') {
+if (env.embeddedWorker) {
   const run = () => {
-    try { processPending(db); } catch (error) { console.error('Payout worker failed', error); }
+    try { runPayoutJob(db); } catch (error) { console.error('Payout worker failed', error); }
   };
   run();
   setInterval(run, 60_000);
 }
-createApp(db).listen(port, host, () => console.log(`PaySplit listening on ${host}:${port}`));
+createApp(db).listen(env.port, env.host, () => console.log(`PaySplit listening on ${env.host}:${env.port}`));

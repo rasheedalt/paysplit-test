@@ -9,8 +9,9 @@ Requires Node.js 24 or later. Node's built-in SQLite module is currently experim
 ```sh
 npm ci
 npm run build
-export PAYSPLIT_WEBHOOK_SECRET="$(node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))')"
-export PAYSPLIT_DB="$PWD/paysplit.db"
+cp .env.example .env
+# Set PAYSPLIT_WEBHOOK_SECRET in .env using:
+# node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))'
 npm start
 ```
 
@@ -21,6 +22,8 @@ npm run worker
 ```
 
 API listens on `http://127.0.0.1:8000`. Set `HOST` and `PORT` for deployment. Set `PAYSPLIT_EMBEDDED_WORKER=1` to process payouts every 60 seconds inside API process. `GET /health` and `GET /openapi.json` need no token. Other user endpoints need bearer token.
+
+Source follows LeasHub backend's boundaries at project scale: `src/app.ts` composes routes; `src/routes/` maps URLs; `src/controllers/` handles HTTP; `src/services/` owns auth and money logic; `src/database/` owns SQLite transactions; `src/middleware/` handles auth and errors; `src/jobs/` runs payouts; `src/config/` reads environment. Integration tests live in `tests/integration/`.
 
 Run focused integration tests and end-to-end demo:
 

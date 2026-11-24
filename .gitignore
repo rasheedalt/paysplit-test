@@ -4,5 +4,16 @@ dist/
 __pycache__/
 *.pyc
 *.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .env
+.env.*
+!.env.example
 .coverage
+.DS_Store
+coverage/
+logs/
+*.log

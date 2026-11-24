@@ -6,9 +6,9 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/src/server.js",
-    "worker": "node dist/src/worker.js",
-    "test": "npm run build && node --test dist/tests/*.test.js",
+    "start": "node --env-file-if-exists=.env dist/src/server.js",
+    "worker": "node --env-file-if-exists=.env dist/src/worker.js",
+    "test": "npm run build && node --test dist/tests/integration/*.test.js",
     "demo": "npm run build && node dist/scripts/demo.js"
   },
   "dependencies": { "express": "5.1.0" },

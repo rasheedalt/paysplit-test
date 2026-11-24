@@ -3,8 +3,10 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
 import { after, before, test } from 'node:test';
-import { createApp } from '../src/app.js';
-import { openDatabase, processPending, transaction, type Row } from '../src/core.js';
+import { createApp } from '../../src/app.js';
+import { openDatabase, transaction } from '../../src/database/sqlite.js';
+import { processPending } from '../../src/services/moneyService.js';
+import type { Row } from '../../src/types/rows.js';
 
 const db = openDatabase(':memory:');
 process.env.PAYSPLIT_WEBHOOK_SECRET = 's'.repeat(32);
