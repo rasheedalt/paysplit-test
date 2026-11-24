@@ -13,7 +13,7 @@ cp .env.example .env
 # node -e 'console.log(require("node:crypto").randomBytes(32).toString("hex"))'
 npm run build
 npm run db:migrate
-npm start
+npm run dev
 ```
 
 In another terminal, run scheduler worker:
@@ -22,9 +22,11 @@ In another terminal, run scheduler worker:
 npm run worker
 ```
 
-`npm run db:migrate` applies Prisma migrations; `npm start` then listens on `http://127.0.0.1:8000`. SQLite URL in `.env.example` points to `prisma/paysplit.db`; Prisma resolves relative file paths from `prisma/schema.prisma`. Set `HOST` and `PORT` for deployment. Set `PAYSPLIT_EMBEDDED_WORKER=1` to process payouts every 60 seconds inside API process. `GET /health` and `GET /openapi.json` need no token. Other user endpoints need bearer token.
+`npm run db:migrate` applies Prisma migrations. `npm run dev` watches TypeScript and restarts API on changes; `npm start` runs compiled build. Both listen on `http://127.0.0.1:8000`. SQLite URL in `.env.example` points to `prisma/paysplit.db`; Prisma resolves relative file paths from `prisma/schema.prisma`. Set `HOST` and `PORT` for deployment. Set `PAYSPLIT_EMBEDDED_WORKER=1` to process payouts every 60 seconds inside API process. Open `http://127.0.0.1:8000/api-docs/` to test endpoints in Swagger UI. `GET /health`, `GET /openapi.json`, and Swagger UI need no token. Other user endpoints need bearer token.
 
 Source follows LeasHub backend's boundaries at project scale: `src/app.ts` composes routes; `src/routes/` maps URLs; `src/controllers/` handles HTTP; `src/services/` owns auth and money logic; `src/database/` creates Prisma Client; `prisma/` owns schema and migrations; `src/middleware/` handles auth and errors; `src/jobs/` runs payouts; `src/config/` reads environment. Integration tests live in `tests/integration/`.
+
+For an attachment-ready walkthrough, use [Run and test guide](docs/RUN_AND_TEST.md).
 
 Run focused integration tests and end-to-end demo:
 
@@ -33,7 +35,7 @@ npm test
 npm run demo
 ```
 
-Demo prints registration, rule setup, signed 600,000 NGN salary event, idempotent replay, payout state, and ledger summary. See [demo narration](docs/demo.md) for 3–5 minute walkthrough. [OpenAPI specification](openapi.json) describes endpoints. [curl examples](docs/curl.md) exercise them.
+Demo creates a temporary user with password `demo-password-123` in a disposable database. It prints registration, rule setup, signed 600,000 NGN salary event, idempotent replay, payout state, and ledger summary. It does not create a user in your local API database. See [demo narration](docs/demo.md) for 3–5 minute walkthrough. [OpenAPI specification](openapi.json) describes endpoints. [curl examples](docs/curl.md) exercise them.
 
 ## Money and execution model
 

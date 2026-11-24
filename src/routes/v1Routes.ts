@@ -6,10 +6,10 @@ import { salaryController } from '../controllers/salaryController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = Router();
-const account = accountController();
-const destinations = destinationController();
-const rules = ruleController();
-const salary = salaryController();
+const account = accountController;
+const destinations = destinationController;
+const rules = ruleController;
+const salary = salaryController;
 
 router.post('/users', account.register);
 router.post('/sessions', account.login);

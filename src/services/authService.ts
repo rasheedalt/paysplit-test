@@ -13,7 +13,13 @@ export function passwordHash(password: string): string {
 export function passwordValid(password: string, stored: string): boolean {
   try {
     const [saltHex, expectedHex] = stored.split(':');
-    if (!saltHex || !expectedHex || !/^[0-9a-f]{32}$/.test(saltHex) || !/^[0-9a-f]{128}$/.test(expectedHex)) return false;
+    if (
+      !saltHex ||
+      !expectedHex ||
+      !/^[0-9a-f]{32}$/.test(saltHex) ||
+      !/^[0-9a-f]{128}$/.test(expectedHex)
+    )
+      return false;
     const expected = Buffer.from(expectedHex, 'hex');
     const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), 64, { N: 16384, r: 8, p: 1 });
     return timingSafeEqual(actual, expected);
